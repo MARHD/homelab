@@ -19,17 +19,17 @@ echo "wireguard" | sudo tee /etc/modules-load.d/wireguard.conf
 # sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 # sudo systemctl restart ssh
 
-echo "==> Reducing GPU memory"
-if ! grep -q "gpu_mem=16" /boot/firmware/config.txt; then
-    echo "gpu_mem=16" | sudo tee -a /boot/firmware/config.txt
-fi
+# echo "==> Reducing GPU memory"
+# if ! grep -q "gpu_mem=16" /boot/firmware/config.txt; then
+#     echo "gpu_mem=16" | sudo tee -a /boot/firmware/config.txt
+# fi
 
-echo "==> Disabling swap"
-sudo dphys-swapfile swapoff
-sudo systemctl disable dphys-swapfile
+# echo "==> Disabling swap"
+# sudo dphys-swapfile swapoff
+# sudo systemctl disable dphys-swapfile
 
-echo "==> Disabling bluetooth"
-sudo systemctl disable bluetooth hciuart 2>/dev/null || true
+# echo "==> Disabling bluetooth"
+# sudo systemctl disable bluetooth hciuart 2>/dev/null || true
 
 echo ""
 echo "==> Done. Next steps:"
