@@ -15,9 +15,9 @@ echo "==> Enabling WireGuard kernel module"
 sudo apt install -y wireguard
 echo "wireguard" | sudo tee /etc/modules-load.d/wireguard.conf
 
-echo "==> Hardening SSH (disabling password auth)"
-sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo systemctl restart ssh
+# echo "==> Hardening SSH (disabling password auth)"
+# sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+# sudo systemctl restart ssh
 
 echo "==> Reducing GPU memory"
 if ! grep -q "gpu_mem=16" /boot/firmware/config.txt; then
