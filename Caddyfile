@@ -1,0 +1,62 @@
+# Replace YOUR_SUBDOMAIN with your actual DuckDNS subdomain (without .duckdns.org)
+# Caddy handles HTTPS automatically via Let's Encrypt
+
+{
+    email your@email.com
+}
+
+# Public website
+YOUR_SUBDOMAIN.duckdns.org {
+    root * /srv/www
+    file_server
+}
+
+# The rest should only be reachable over WireGuard (10.13.13.x)
+# These are local-only — not port-forwarded, not public
+
+@internal {
+    remote_ip 10.13.13.0/24 192.168.0.0/16
+}
+
+jellyfin.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy jellyfin:8096
+    }
+    respond 403
+}
+
+navidrome.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy navidrome:4533
+    }
+    respond 403
+}
+
+immich.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy immich-server:3001
+    }
+    respond 403
+}
+
+nextcloud.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy nextcloud:80
+    }
+    respond 403
+}
+
+vaultwarden.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy vaultwarden:80
+        reverse_proxy /notifications/hub vaultwarden:3012
+    }
+    respond 403
+}
+
+pihole.YOUR_SUBDOMAIN.duckdns.org {
+    handle @internal {
+        reverse_proxy pihole:80
+    }
+    respond 403
+}

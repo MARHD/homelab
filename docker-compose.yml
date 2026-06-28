@@ -1,0 +1,212 @@
+services:
+
+  # ─── DNS & Ad Blocking ───────────────────────────────────────────────────────
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8080:80"           # Pi-hole web UI
+    environment:
+      TZ: ${TZ}
+      WEBPASSWORD: ${PIHOLE_PASSWORD}
+    volumes:
+      - /mnt/hdd/pihole/config:/etc/pihole
+      - /mnt/hdd/pihole/dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - homelab
+
+  # ─── Dynamic DNS ─────────────────────────────────────────────────────────────
+  duckdns:
+    image: lscr.io/linuxserver/duckdns:latest
+    container_name: duckdns
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      SUBDOMAINS: ${DUCKDNS_SUBDOMAIN}
+      TOKEN: ${DUCKDNS_TOKEN}
+    networks:
+      - homelab
+
+  # ─── Reverse Proxy ───────────────────────────────────────────────────────────
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /mnt/hdd/caddy/data:/data
+      - /mnt/hdd/caddy/config:/config
+      - /mnt/hdd/www:/srv/www:ro    # static website files
+    networks:
+      - homelab
+
+  # ─── VPN ─────────────────────────────────────────────────────────────────────
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      TZ: ${TZ}
+      SERVERURL: ${DUCKDNS_SUBDOMAIN}.duckdns.org
+      SERVERPORT: 51820
+      PEERS: ${WG_PEERS}          # comma-separated peer names e.g. phone,laptop
+      PEERDNS: auto
+      INTERNAL_SUBNET: 10.13.13.0
+    volumes:
+      - /mnt/hdd/wireguard/config:/config
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - homelab
+
+  # ─── Password Manager ────────────────────────────────────────────────────────
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      WEBSOCKET_ENABLED: "true"
+      SIGNUPS_ALLOWED: "false"    # disable after creating your account
+    volumes:
+      - /mnt/hdd/vaultwarden:/data
+    networks:
+      - homelab
+
+  # ─── Google Photos Clone ─────────────────────────────────────────────────────
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich-server
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      DB_HOSTNAME: immich-postgres
+      DB_USERNAME: ${IMMICH_DB_USER}
+      DB_PASSWORD: ${IMMICH_DB_PASS}
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: immich-redis
+    volumes:
+      - /mnt/hdd/immich/upload:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - immich-postgres
+      - immich-redis
+    networks:
+      - homelab
+
+  # Disable or remove this container if you don't need face detection / CLIP search
+  # It will peg the Pi's CPU during initial library scan
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:release
+    container_name: immich-machine-learning
+    restart: unless-stopped
+    volumes:
+      - /mnt/hdd/immich/ml-cache:/cache
+    networks:
+      - homelab
+
+  immich-redis:
+    image: redis:6-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    networks:
+      - homelab
+
+  immich-postgres:
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0
+    container_name: immich-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${IMMICH_DB_USER}
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASS}
+      POSTGRES_DB: immich
+    volumes:
+      - /mnt/hdd/immich/postgres:/var/lib/postgresql/data
+    networks:
+      - homelab
+
+  # ─── Google Drive Clone ──────────────────────────────────────────────────────
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      MYSQL_HOST: nextcloud-db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASS}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASS}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${DUCKDNS_SUBDOMAIN}.duckdns.org
+    volumes:
+      - /mnt/hdd/nextcloud/data:/var/www/html
+    depends_on:
+      - nextcloud-db
+    networks:
+      - homelab
+
+  nextcloud-db:
+    image: yobasystems/alpine-mariadb:arm32v7   # ARM-compatible MariaDB
+    container_name: nextcloud-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASS}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASS}
+    volumes:
+      - /mnt/hdd/nextcloud/db:/var/lib/mysql
+    networks:
+      - homelab
+
+  # ─── Spotify Clone ───────────────────────────────────────────────────────────
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      TZ: ${TZ}
+      ND_SCANSCHEDULE: "1h"
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 24h
+      ND_BASEURL: ""
+    volumes:
+      - /mnt/hdd/navidrome/config:/data
+      - /mnt/hdd/music:/music:ro
+    networks:
+      - homelab
+
+  # ─── Netflix Clone ───────────────────────────────────────────────────────────
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      JELLYFIN_PublishedServerUrl: https://${DUCKDNS_SUBDOMAIN}.duckdns.org
+    volumes:
+      - /mnt/hdd/jellyfin/config:/config
+      - /mnt/hdd/movies:/data/movies:ro
+      - /mnt/hdd/tvshows:/data/tvshows:ro
+    networks:
+      - homelab
+
+networks:
+  homelab:
+    driver: bridge
